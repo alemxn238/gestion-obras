@@ -2,11 +2,13 @@
 
 import { useState } from 'react';
 import { supabase } from '../../../lib/supabase';
+import { useRouter } from 'next/navigation';
 
-export default function NuevoPartePage({ params }: { params: { projectId: string } }) {
+export default function NuevoPartePage() {
+  const router = useRouter();
+  const [roomName, setRoomName] = useState('');
   const [description, setDescription] = useState('');
-  const [roomName, setRoomName] = useState('General');
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<FileList | null>(null);
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -14,96 +16,96 @@ export default function NuevoPartePage({ params }: { params: { projectId: string
     setLoading(true);
 
     try {
-      let photoUrl = '';
+      const photoUrls: string[] = [];
 
-      // 1. Subir la imagen al storage de Supabase
-      if (file) {
-        const fileExt = file.name.split('.').pop();
-        const fileName = `${Date.now()}.${fileExt}`;
-        const { data, error: uploadError } = await supabase.storage
-          .from('obras-media')
-          .upload(fileName, file);
+      // 1. Subir fotos a Supabase Storage (Bucket: obras-media)
+      if (files) {
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          const fileExt = file.name.split('.').pop();
+          const fileName = `${Date.now()}-${Math.random()}.${fileExt}`;
+          const filePath = `partes/${fileName}`;
 
-        if (uploadError) throw uploadError;
+          const { error: uploadError } = await supabase.storage
+            .from('obras-media')
+            .upload(filePath, file);
 
-        const { data: urlData } = supabase.storage
-          .from('obras-media')
-          .getPublicUrl(fileName);
-        
-        photoUrl = urlData.publicUrl;
+          if (uploadError) throw uploadError;
+
+          const { data: publicUrlData } = supabase.storage
+            .from('obras-media')
+            .getPublicUrl(filePath);
+
+          photoUrls.push(publicUrlData.publicUrl);
+        }
       }
 
-      // 2. Guardar el registro en la base de datos
-      const { error: dbError } = await supabase.from('daily_logs').insert({
-        project_id: params.projectId,
-        room_name: roomName,
-        description,
-        photos_urls: photoUrl ? [photoUrl] : [],
-      });
+      // 2. Insertar parte diario en la base de datos de Supabase
+      const { error: insertError } = await supabase.from('daily_logs').insert([
+        {
+          room_name: roomName,
+          description: description,
+          photos_urls: photoUrls,
+        },
+      ]);
 
-      if (dbError) throw dbError;
+      if (insertError) throw insertError;
 
-      // 3. Disparar webhook para notificación por WhatsApp
-      await fetch('/api/notifications/whatsapp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          projectId: params.projectId,
-          message: `Nuevo avance en ${roomName}: ${description}`
-        }),
-      });
-
-      alert('Parte diario registrado correctamente');
-    } catch (error) {
-      console.error(error);
-      alert('Error al guardar el avance');
+      alert('Parte subido con éxito');
+      router.push('/cliente/obra');
+    } catch (error: any) {
+      alert('Error guardando el parte: ' + error.message);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="max-w-md mx-auto p-4">
-      <h1 className="text-xl font-bold mb-4">Registrar Parte Diario</h1>
+    <div className="min-h-screen bg-slate-900 text-white p-6 max-w-lg mx-auto">
+      <h1 className="text-2xl font-bold mb-6">Nuevo Parte Diario</h1>
+
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium">Estancia</label>
+          <label className="block text-sm font-medium mb-1">Estancia / Habitación</label>
           <input
             type="text"
+            required
+            placeholder="Ej. Salón, Baño principal"
             value={roomName}
             onChange={(e) => setRoomName(e.target.value)}
-            className="w-full border p-2 rounded"
-            placeholder="Ej. Cocina, Baño"
-            required
+            className="w-full p-3 rounded bg-slate-800 border border-slate-700 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium">¿Qué se ha hecho hoy?</label>
+          <label className="block text-sm font-medium mb-1">Descripción del trabajo</label>
           <textarea
+            required
+            rows={4}
+            placeholder="Describe los avances del día..."
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            className="w-full border p-2 rounded h-24"
-            required
+            className="w-full p-3 rounded bg-slate-800 border border-slate-700 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium">Foto del avance</label>
+          <label className="block text-sm font-medium mb-1">Fotografías de la obra</label>
           <input
             type="file"
+            multiple
             accept="image/*"
-            onChange={(e) => setFile(e.target.files?.[0] || null)}
-            className="w-full border p-2"
+            onChange={(e) => setFiles(e.target.files)}
+            className="w-full text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700 cursor-pointer"
           />
         </div>
 
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-blue-600 text-white py-2 rounded font-semibold"
+          className="w-full py-3 bg-blue-600 hover:bg-blue-700 font-bold rounded transition-colors disabled:opacity-50 mt-4"
         >
-          {loading ? 'Guardando...' : 'Publicar Avance'}
+          {loading ? 'Subiendo fotos y datos...' : 'Publicar Parte'}
         </button>
       </form>
     </div>
