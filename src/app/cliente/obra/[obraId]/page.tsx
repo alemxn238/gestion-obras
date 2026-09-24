@@ -16,8 +16,8 @@ interface DailyLog {
 export default function ObraClientePage() {
   const params = useParams();
   
-  // Extraer el parámetro "id" directamente del objeto params de Next.js
-  const obraId = typeof params?.id === 'string' ? params.id : Array.isArray(params?.id) ? params.id[0] : '';
+  // Como la carpeta se llama [obraId], leemos exactamente params.obraId
+  const obraId = params?.obraId as string;
 
   const [logs, setLogs] = useState<DailyLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -28,19 +28,23 @@ export default function ObraClientePage() {
 
       setLoading(true);
 
-      const { data, error } = await supabase
-        .from('daily_logs')
-        .select('*')
-        .eq('obra_id', obraId)
-        .order('created_at', { ascending: false });
+      try {
+        const { data, error } = await supabase
+          .from('daily_logs')
+          .select('*')
+          .eq('obra_id', obraId)
+          .order('created_at', { ascending: false });
 
-      if (error) {
-        console.error('Error al cargar los partes de Supabase:', error.message);
-      } else {
-        setLogs(data || []);
+        if (error) {
+          console.error('Error Supabase:', error.message);
+        } else {
+          setLogs(data || []);
+        }
+      } catch (err) {
+        console.error('Error de conexión:', err);
+      } finally {
+        setLoading(false);
       }
-
-      setLoading(false);
     }
 
     cargarPartesObra();
@@ -51,11 +55,13 @@ export default function ObraClientePage() {
       <header className="border-b border-slate-800 pb-4 mb-6">
         <h1 className="text-2xl font-bold text-blue-400">Seguimiento de Su Obra</h1>
         <p className="text-sm text-slate-400 mt-1">
-          Código de referencia: <span className="font-mono text-white">{obraId || 'Cargando...'}</span>
+          Código de referencia: <span className="font-mono text-white">{obraId || 'Sin código'}</span>
         </p>
       </header>
 
-      {loading ? (
+      {!obraId ? (
+        <div className="text-center py-10 text-slate-400">Cargando identificador de obra...</div>
+      ) : loading ? (
         <div className="text-center py-10 text-slate-400">Cargando los avances de su obra...</div>
       ) : logs.length === 0 ? (
         <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 text-center text-slate-300">
