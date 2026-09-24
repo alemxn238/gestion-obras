@@ -4,25 +4,31 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase } from '../../../../lib/supabase';
 
+// Interfaz para definir la estructura de un parte diario
 interface DailyLog {
   id: string;
+  obra_id: string;
   room_name: string;
   description: string;
   photos_urls: string[];
   created_at: string;
-  obra_id: string;
 }
 
 export default function ObraClientePage() {
   const params = useParams();
-  const obraId = params.obraId as string;
+  // Obtener el identificador único de la obra desde la URL
+  const obraId = params?.id as string;
+
   const [logs, setLogs] = useState<DailyLog[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function fetchLogs() {
+    async function cargarPartesObra() {
       if (!obraId) return;
 
+      setLoading(true);
+
+      // Filtrar la base de datos únicamente por la obra específica de este cliente
       const { data, error } = await supabase
         .from('daily_logs')
         .select('*')
@@ -30,61 +36,74 @@ export default function ObraClientePage() {
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('Error cargando partes:', error);
+        console.error('Error al cargar los partes de la obra:', error.message);
       } else {
         setLogs(data || []);
       }
+
       setLoading(false);
     }
 
-    fetchLogs();
+    cargarPartesObra();
   }, [obraId]);
 
   return (
     <div className="min-h-screen bg-slate-900 text-white p-6 max-w-2xl mx-auto">
-      <header className="mb-8 border-b border-slate-800 pb-4">
-        <h1 className="text-3xl font-bold">Estado de la Obra</h1>
-        <p className="text-slate-400 text-sm mt-1">
-          Código de obra: <span className="font-mono text-blue-400">{obraId}</span>
+      {/* Encabezado sin menús ni selectores de otras obras */}
+      <header className="border-b border-slate-800 pb-4 mb-6">
+        <h1 className="text-2xl font-bold text-blue-400">Seguimiento de Su Obra</h1>
+        <p className="text-sm text-slate-400 mt-1">
+          Código de referencia: <span className="font-mono text-white">{obraId}</span>
         </p>
       </header>
 
+      {/* Estado de carga */}
       {loading ? (
-        <p className="text-slate-400">Cargando partes de la obra...</p>
+        <div className="text-center py-10 text-slate-400">Cargando los avances de su obra...</div>
       ) : logs.length === 0 ? (
-        <p className="text-slate-400">No hay partes publicados para esta obra aún.</p>
+        /* Estado sin partes publicados */
+        <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 text-center text-slate-300">
+          Aún no se han publicado avances para esta obra.
+        </div>
       ) : (
+        /* Lista de partes cargados únicamente para esta obra */
         <div className="space-y-6">
           {logs.map((log) => (
-            <div key={log.id} className="bg-slate-800 border border-slate-700 rounded-lg p-5 shadow-lg">
-              <div className="flex justify-between items-center mb-3">
-                <span className="bg-blue-600 text-xs px-2.5 py-1 rounded font-semibold uppercase">
-                  {log.room_name}
-                </span>
+            <article key={log.id} className="bg-slate-800 border border-slate-700 rounded-lg p-5 space-y-4">
+              <div className="flex justify-between items-start border-b border-slate-700 pb-2">
+                <h2 className="text-lg font-semibold text-white">{log.room_name}</h2>
                 <span className="text-xs text-slate-400">
                   {new Date(log.created_at).toLocaleDateString('es-ES', {
                     day: 'numeric',
-                    month: 'short',
-                    hour: '2-digit',
-                    minute: '2-digit',
+                    month: 'long',
+                    year: 'numeric',
                   })}
                 </span>
               </div>
-              <p className="text-slate-200 mb-4 whitespace-pre-wrap">{log.description}</p>
-              
+
+              <p className="text-slate-300 text-sm whitespace-pre-line">{log.description}</p>
+
+              {/* Galería de imágenes de la obra */}
               {log.photos_urls && log.photos_urls.length > 0 && (
-                <div className="grid grid-cols-2 gap-3 mt-4">
+                <div className="grid grid-cols-2 gap-2 pt-2">
                   {log.photos_urls.map((url, idx) => (
-                    <img
+                    <a
                       key={idx}
-                      src={url}
-                      alt={`Foto ${idx + 1}`}
-                      className="w-full h-40 object-cover rounded-md border border-slate-700 hover:opacity-90 transition-opacity cursor-pointer"
-                    />
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block overflow-hidden rounded border border-slate-700 hover:opacity-90 transition-opacity"
+                    >
+                      <img
+                        src={url}
+                        alt={`Foto de ${log.room_name}`}
+                        className="w-full h-36 object-cover"
+                      />
+                    </a>
                   ))}
                 </div>
               )}
-            </div>
+            </article>
           ))}
         </div>
       )}
