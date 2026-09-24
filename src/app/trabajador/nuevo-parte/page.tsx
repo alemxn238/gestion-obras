@@ -1,11 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../../../lib/supabase';
 
 export default function NuevoPartePage() {
   const router = useRouter();
+
+  // Estados para gestionar los campos del formulario
   const [obraId, setObraId] = useState('obra-1');
   const [nuevaObraInput, setNuevaObraInput] = useState('');
   const [roomName, setRoomName] = useState('');
@@ -13,12 +15,34 @@ export default function NuevoPartePage() {
   const [files, setFiles] = useState<FileList | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // PASO 4: Verificar que el trabajador tiene sesión iniciada al cargar la página
+  useEffect(() => {
+    async function verificarUsuario() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        // Si no hay usuario autenticado, redirigir al login
+        router.push('/login');
+      }
+    }
+    verificarUsuario();
+  }, [router]);
+
+  // Manejador del envío del formulario
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      // Determinar el código final de la obra (si es una nueva o la seleccionada)
+      // Obtener el usuario autenticado actual
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (!user) {
+        alert('Debes iniciar sesión para publicar un parte.');
+        router.push('/login');
+        return;
+      }
+
+      // Determinar el código de obra (existente o nueva)
       const targetObraId = obraId === 'nueva' ? nuevaObraInput.trim() : obraId;
 
       if (!targetObraId) {
@@ -29,6 +53,7 @@ export default function NuevoPartePage() {
 
       const photoUrls: string[] = [];
 
+      // Subida de fotografías
       if (files) {
         for (let i = 0; i < files.length; i++) {
           const file = files[i];
@@ -50,12 +75,14 @@ export default function NuevoPartePage() {
         }
       }
 
+      // Guardar en la base de datos asociando el ID del usuario trabajador (user_id)
       const { error: insertError } = await supabase.from('daily_logs').insert([
         {
           obra_id: targetObraId,
           room_name: roomName,
           description: description,
           photos_urls: photoUrls,
+          user_id: user.id, // Asigna automáticamente la obra al trabajador actual
         },
       ]);
 
@@ -75,6 +102,7 @@ export default function NuevoPartePage() {
       <h1 className="text-2xl font-bold mb-6">Nuevo Parte Diario</h1>
 
       <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Selección o creación de obra */}
         <div>
           <label className="block text-sm font-medium mb-1">Seleccionar o Crear Obra</label>
           <select
@@ -100,6 +128,7 @@ export default function NuevoPartePage() {
           )}
         </div>
 
+        {/* Estancia */}
         <div>
           <label className="block text-sm font-medium mb-1">Estancia / Habitación</label>
           <input
@@ -112,6 +141,7 @@ export default function NuevoPartePage() {
           />
         </div>
 
+        {/* Descripción */}
         <div>
           <label className="block text-sm font-medium mb-1">Descripción del trabajo</label>
           <textarea
@@ -124,6 +154,7 @@ export default function NuevoPartePage() {
           />
         </div>
 
+        {/* Fotografías */}
         <div>
           <label className="block text-sm font-medium mb-1">Fotografías de la obra</label>
           <input
@@ -135,6 +166,7 @@ export default function NuevoPartePage() {
           />
         </div>
 
+        {/* Botón de envío */}
         <button
           type="submit"
           disabled={loading}
