@@ -7,42 +7,73 @@ import { supabase } from '../../../lib/supabase';
 export default function NuevoPartePage() {
   const router = useRouter();
 
-  // Estados para gestionar los campos del formulario
-  const [obraId, setObraId] = useState('obra-1');
+  const [userId, setUserId] = useState<string | null>(null);
+  const [misObras, setMisObras] = useState<string[]>([]);
+  const [obraId, setObraId] = useState('');
   const [nuevaObraInput, setNuevaObraInput] = useState('');
   const [roomName, setRoomName] = useState('');
   const [description, setDescription] = useState('');
   const [files, setFiles] = useState<FileList | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadingPage, setLoadingPage] = useState(true);
 
-  // PASO 4: Verificar que el trabajador tiene sesión iniciada al cargar la página
+  // 1. Verificar sesión del trabajador y obtener solo SUS obras asignadas
   useEffect(() => {
-    async function verificarUsuario() {
+    async function inicializarTrabajador() {
       const { data: { user } } = await supabase.auth.getUser();
+
       if (!user) {
-        // Si no hay usuario autenticado, redirigir al login
+        // Redirigir al inicio de sesión si no hay usuario autenticado
         router.push('/login');
+        return;
       }
+
+      setUserId(user.id);
+
+      // Consultar únicamente los partes de obras creadas por este trabajador
+      const { data, error } = await supabase
+        .from('daily_logs')
+        .select('obra_id')
+        .eq('user_id', user.id);
+
+      if (!error && data) {
+        // Filtrar obras únicas asignadas a este trabajador
+        const unicas = Array.from(new Set(data.map((item) => item.obra_id))).filter(Boolean);
+        setMisObras(unicas);
+        if (unicas.length > 0) {
+          setObraId(unicas[0]);
+        } else {
+          setObraId('nueva');
+        }
+      } else {
+        setObraId('nueva');
+      }
+
+      setLoadingPage(false);
     }
-    verificarUsuario();
+
+    inicializarTrabajador();
   }, [router]);
 
-  // Manejador del envío del formulario
+  // Manejador de cierre de sesión
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.push('/login');
+  };
+
+  // 2. Enviar el parte diario asignado obligatoriamente al trabajador activo
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      // Obtener el usuario autenticado actual
-      const { data: { user } } = await supabase.auth.getUser();
-
-      if (!user) {
-        alert('Debes iniciar sesión para publicar un parte.');
+      if (!userId) {
+        alert('Debes estar autenticado para publicar un parte.');
         router.push('/login');
         return;
       }
 
-      // Determinar el código de obra (existente o nueva)
+      // Determinar la obra seleccionada o la nueva creada
       const targetObraId = obraId === 'nueva' ? nuevaObraInput.trim() : obraId;
 
       if (!targetObraId) {
@@ -53,7 +84,7 @@ export default function NuevoPartePage() {
 
       const photoUrls: string[] = [];
 
-      // Subida de fotografías
+      // Subida de imágenes al bucket
       if (files) {
         for (let i = 0; i < files.length; i++) {
           const file = files[i];
@@ -75,52 +106,78 @@ export default function NuevoPartePage() {
         }
       }
 
-      // Guardar en la base de datos asociando el ID del usuario trabajador (user_id)
+      // Guardar en la base de datos vinculando el user_id
       const { error: insertError } = await supabase.from('daily_logs').insert([
         {
           obra_id: targetObraId,
           room_name: roomName,
           description: description,
           photos_urls: photoUrls,
-          user_id: user.id, // Asigna automáticamente la obra al trabajador actual
+          user_id: userId, // Garantiza el aislamiento por trabajador
         },
       ]);
 
       if (insertError) throw insertError;
 
-      alert('Parte subido con éxito');
-      router.push(`/cliente/obra/${targetObraId}`);
+      alert('Parte publicado correctamente');
+      
+      // Limpiar formulario o actualizar lista de sus obras
+      if (!misObras.includes(targetObraId)) {
+        setMisObras([...misObras, targetObraId]);
+      }
+      setObraId(targetObraId);
+      setRoomName('');
+      setDescription('');
+      setFiles(null);
     } catch (error: any) {
-      alert('Error guardando el parte: ' + error.message);
+      alert('Error al guardar el parte: ' + error.message);
     } finally {
       setLoading(false);
     }
   };
 
+  if (loadingPage) {
+    return (
+      <div className="min-h-screen bg-slate-900 text-white p-6 flex items-center justify-center">
+        <p className="text-slate-400">Verificando sesión del trabajador...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-900 text-white p-6 max-w-lg mx-auto">
-      <h1 className="text-2xl font-bold mb-6">Nuevo Parte Diario</h1>
+      <div className="flex justify-between items-center mb-6 border-b border-slate-800 pb-4">
+        <h1 className="text-2xl font-bold">Panel de Trabajador</h1>
+        <button
+          onClick={handleLogout}
+          className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3 py-1.5 rounded transition-colors"
+        >
+          Cerrar Sesión
+        </button>
+      </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Selección o creación de obra */}
+        {/* Desplegable limitado a SUS obras */}
         <div>
-          <label className="block text-sm font-medium mb-1">Seleccionar o Crear Obra</label>
+          <label className="block text-sm font-medium mb-1">Tus Obras Asignadas</label>
           <select
             value={obraId}
             onChange={(e) => setObraId(e.target.value)}
             className="w-full p-3 rounded bg-slate-800 border border-slate-700 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            <option value="obra-1">Obra 1 (Demo)</option>
-            <option value="chalet-torrent">Chalet Torrent</option>
-            <option value="piso-gran-via">Piso Gran Vía</option>
-            <option value="nueva">+ Crear nueva obra...</option>
+            {misObras.map((obra) => (
+              <option key={obra} value={obra}>
+                {obra}
+              </option>
+            ))}
+            <option value="nueva">+ Asignar/Crear nueva obra...</option>
           </select>
 
           {obraId === 'nueva' && (
             <input
               type="text"
               required
-              placeholder="Nombre o código de la nueva obra"
+              placeholder="Código o nombre de la obra"
               value={nuevaObraInput}
               onChange={(e) => setNuevaObraInput(e.target.value)}
               className="w-full p-3 rounded bg-slate-800 border border-slate-700 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 mt-2"
@@ -154,7 +211,7 @@ export default function NuevoPartePage() {
           />
         </div>
 
-        {/* Fotografías */}
+        {/* Imágenes */}
         <div>
           <label className="block text-sm font-medium mb-1">Fotografías de la obra</label>
           <input
@@ -166,13 +223,13 @@ export default function NuevoPartePage() {
           />
         </div>
 
-        {/* Botón de envío */}
+        {/* Envío */}
         <button
           type="submit"
           disabled={loading}
           className="w-full py-3 bg-blue-600 hover:bg-blue-700 font-bold rounded transition-colors disabled:opacity-50 mt-4"
         >
-          {loading ? 'Subiendo fotos y datos...' : 'Publicar Parte'}
+          {loading ? 'Subiendo datos y fotos...' : 'Publicar Parte'}
         </button>
       </form>
     </div>
