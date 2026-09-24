@@ -1,90 +1,93 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
+import { useParams } from 'next/navigation';
+import { supabase } from '../../../../lib/supabase';
 
-export default function BuscarObraPage() {
-  const [obras, setObras] = useState<string[]>([]);
-  const [selectedObra, setSelectedObra] = useState('');
+interface DailyLog {
+  id: string;
+  room_name: string;
+  description: string;
+  photos_urls: string[];
+  created_at: string;
+  obra_id: string;
+}
+
+export default function ObraClientePage() {
+  const params = useParams();
+  const obraId = params.obraId as string;
+  const [logs, setLogs] = useState<DailyLog[]>([]);
   const [loading, setLoading] = useState(true);
-  const router = useRouter();
 
   useEffect(() => {
-    async function fetchObras() {
+    async function fetchLogs() {
+      if (!obraId) return;
+
       const { data, error } = await supabase
         .from('daily_logs')
-        .select('obra_id');
+        .select('*')
+        .eq('obra_id', obraId)
+        .order('created_at', { ascending: false });
 
-      if (!error && data) {
-        const unicas = Array.from(new Set(data.map((item) => item.obra_id)));
-        setObras(unicas);
-        if (unicas.length > 0) setSelectedObra(unicas[0]);
+      if (error) {
+        console.error('Error cargando partes:', error);
+      } else {
+        setLogs(data || []);
       }
       setLoading(false);
     }
 
-    fetchObras();
-  }, []);
-
-  const handleAcceder = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (selectedObra.trim()) {
-      router.push(`/cliente/obra/${selectedObra.trim()}`);
-    }
-  };
+    fetchLogs();
+  }, [obraId]);
 
   return (
-    <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-center p-6">
-      <div className="max-w-md w-full bg-slate-800 p-6 rounded-lg border border-slate-700 text-center shadow-xl">
-        <h1 className="text-2xl font-bold mb-2">Acceso a tu Obra</h1>
-        <p className="text-slate-400 text-sm mb-6">
-          Selecciona una obra activa de la lista para ver el seguimiento diario.
+    <div className="min-h-screen bg-slate-900 text-white p-6 max-w-2xl mx-auto">
+      <header className="mb-8 border-b border-slate-800 pb-4">
+        <h1 className="text-3xl font-bold">Estado de la Obra</h1>
+        <p className="text-slate-400 text-sm mt-1">
+          Código de obra: <span className="font-mono text-blue-400">{obraId}</span>
         </p>
+      </header>
 
-        {loading ? (
-          <p className="text-slate-400">Cargando obras activas...</p>
-        ) : (
-          <form onSubmit={handleAcceder} className="space-y-4">
-            {obras.length > 0 ? (
-              <div>
-                <label className="block text-left text-xs text-slate-400 mb-1">
-                  Obras en curso
-                </label>
-                <select
-                  value={selectedObra}
-                  onChange={(e) => setSelectedObra(e.target.value)}
-                  className="w-full p-3 rounded bg-slate-900 border border-slate-700 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  {obras.map((obra) => (
-                    <option key={obra} value={obra}>
-                      {obra}
-                    </option>
+      {loading ? (
+        <p className="text-slate-400">Cargando partes de la obra...</p>
+      ) : logs.length === 0 ? (
+        <p className="text-slate-400">No hay partes publicados para esta obra aún.</p>
+      ) : (
+        <div className="space-y-6">
+          {logs.map((log) => (
+            <div key={log.id} className="bg-slate-800 border border-slate-700 rounded-lg p-5 shadow-lg">
+              <div className="flex justify-between items-center mb-3">
+                <span className="bg-blue-600 text-xs px-2.5 py-1 rounded font-semibold uppercase">
+                  {log.room_name}
+                </span>
+                <span className="text-xs text-slate-400">
+                  {new Date(log.created_at).toLocaleDateString('es-ES', {
+                    day: 'numeric',
+                    month: 'short',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </span>
+              </div>
+              <p className="text-slate-200 mb-4 whitespace-pre-wrap">{log.description}</p>
+              
+              {log.photos_urls && log.photos_urls.length > 0 && (
+                <div className="grid grid-cols-2 gap-3 mt-4">
+                  {log.photos_urls.map((url, idx) => (
+                    <img
+                      key={idx}
+                      src={url}
+                      alt={`Foto ${idx + 1}`}
+                      className="w-full h-40 object-cover rounded-md border border-slate-700 hover:opacity-90 transition-opacity cursor-pointer"
+                    />
                   ))}
-                </select>
-              </div>
-            ) : (
-              <div>
-                <input
-                  type="text"
-                  required
-                  placeholder="Ej. chalet-torrent"
-                  value={selectedObra}
-                  onChange={(e) => setSelectedObra(e.target.value)}
-                  className="w-full p-3 rounded bg-slate-900 border border-slate-700 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            )}
-
-            <button
-              type="submit"
-              className="w-full py-3 bg-blue-600 hover:bg-blue-700 font-bold rounded transition-colors"
-            >
-              Ver Seguramiento de Obra
-            </button>
-          </form>
-        )}
-      </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
