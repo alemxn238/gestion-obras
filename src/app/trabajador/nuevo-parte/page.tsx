@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 
 export default function NuevoPartePage() {
   const router = useRouter();
+  const [obraId, setObraId] = useState('obra-1'); // O la obra asignada
   const [roomName, setRoomName] = useState('');
   const [description, setDescription] = useState('');
   const [files, setFiles] = useState<FileList | null>(null);
@@ -18,13 +19,12 @@ export default function NuevoPartePage() {
     try {
       const photoUrls: string[] = [];
 
-      // 1. Subir fotos a Supabase Storage
       if (files) {
         for (let i = 0; i < files.length; i++) {
           const file = files[i];
           const fileExt = file.name.split('.').pop();
           const fileName = `${Date.now()}-${Math.random()}.${fileExt}`;
-          const filePath = `partes/${fileName}`;
+          const filePath = `${obraId}/${fileName}`;
 
           const { error: uploadError } = await supabase.storage
             .from('obras-media')
@@ -40,9 +40,9 @@ export default function NuevoPartePage() {
         }
       }
 
-      // 2. Insertar en la base de datos
       const { error: insertError } = await supabase.from('daily_logs').insert([
         {
+          obra_id: obraId,
           room_name: roomName,
           description: description,
           photos_urls: photoUrls,
@@ -52,7 +52,7 @@ export default function NuevoPartePage() {
       if (insertError) throw insertError;
 
       alert('Parte subido con éxito');
-      router.push('/cliente/obra');
+      router.push(`/cliente/obra/${obraId}`);
     } catch (error: any) {
       alert('Error guardando el parte: ' + error.message);
     } finally {
@@ -65,6 +65,18 @@ export default function NuevoPartePage() {
       <h1 className="text-2xl font-bold mb-6">Nuevo Parte Diario</h1>
 
       <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium mb-1">Código o Nombre de la Obra</label>
+          <input
+            type="text"
+            required
+            placeholder="Ej. obra-1, reforma-chalet-torrent"
+            value={obraId}
+            onChange={(e) => setObraId(e.target.value)}
+            className="w-full p-3 rounded bg-slate-800 border border-slate-700 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
         <div>
           <label className="block text-sm font-medium mb-1">Estancia / Habitación</label>
           <input
