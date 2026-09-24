@@ -18,7 +18,7 @@ export default function NuevoPartePage() {
     try {
       const photoUrls: string[] = [];
 
-      // 1. Subir fotos a Supabase Storage (Bucket: obras-media)
+      // 1. Subir fotos a Supabase Storage
       if (files) {
         for (let i = 0; i < files.length; i++) {
           const file = files[i];
@@ -40,7 +40,7 @@ export default function NuevoPartePage() {
         }
       }
 
-      // 2. Insertar parte diario en la base de datos de Supabase
+      // 2. Insertar en la base de datos
       const { error: insertError } = await supabase.from('daily_logs').insert([
         {
           room_name: roomName,
