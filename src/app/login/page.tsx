@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -10,7 +11,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  // Inicio de sesión para el trabajador
+  // Manejador del inicio de sesión del trabajador
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -65,6 +66,13 @@ export default function LoginPage() {
         >
           {loading ? 'Iniciando sesión...' : 'Entrar'}
         </button>
+
+        {/* Botón para volver a la página principal */}
+        <div className="text-center pt-2">
+          <Link href="/" className="text-xs text-slate-400 hover:text-white hover:underline transition-colors">
+            ← Volver al Inicio
+          </Link>
+        </div>
       </form>
     </div>
   );
