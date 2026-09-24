@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState, use } from 'react';
+import { useEffect, useState } from 'react';
+import { useParams } from 'next/navigation';
 import { supabase } from '../../../../lib/supabase';
 
 interface DailyLog {
@@ -12,10 +13,11 @@ interface DailyLog {
   created_at: string;
 }
 
-export default function ObraClientePage({ params }: { params: Promise<{ id: string }> }) {
-  // Desenvolver el parámetro id de la URL
-  const resolvedParams = use(params);
-  const obraId = resolvedParams?.id;
+export default function ObraClientePage() {
+  const params = useParams();
+  
+  // Extraer el parámetro "id" directamente del objeto params de Next.js
+  const obraId = typeof params?.id === 'string' ? params.id : Array.isArray(params?.id) ? params.id[0] : '';
 
   const [logs, setLogs] = useState<DailyLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -33,7 +35,7 @@ export default function ObraClientePage({ params }: { params: Promise<{ id: stri
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('Error al cargar los partes:', error.message);
+        console.error('Error al cargar los partes de Supabase:', error.message);
       } else {
         setLogs(data || []);
       }
@@ -49,7 +51,7 @@ export default function ObraClientePage({ params }: { params: Promise<{ id: stri
       <header className="border-b border-slate-800 pb-4 mb-6">
         <h1 className="text-2xl font-bold text-blue-400">Seguimiento de Su Obra</h1>
         <p className="text-sm text-slate-400 mt-1">
-          Código de referencia: <span className="font-mono text-white">{obraId}</span>
+          Código de referencia: <span className="font-mono text-white">{obraId || 'Cargando...'}</span>
         </p>
       </header>
 
@@ -57,7 +59,7 @@ export default function ObraClientePage({ params }: { params: Promise<{ id: stri
         <div className="text-center py-10 text-slate-400">Cargando los avances de su obra...</div>
       ) : logs.length === 0 ? (
         <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 text-center text-slate-300">
-          Aún no se han publicado avances para esta obra.
+          Aún no se han publicado avances para la obra "{obraId}".
         </div>
       ) : (
         <div className="space-y-6">
