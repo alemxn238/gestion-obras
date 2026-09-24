@@ -1,10 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useEffect, useState, use } from 'react';
 import { supabase } from '../../../../lib/supabase';
 
-// Interfaz para definir la estructura de un parte diario
 interface DailyLog {
   id: string;
   obra_id: string;
@@ -14,10 +12,10 @@ interface DailyLog {
   created_at: string;
 }
 
-export default function ObraClientePage() {
-  const params = useParams();
-  // Obtener el identificador único de la obra desde la URL
-  const obraId = params?.id as string;
+export default function ObraClientePage({ params }: { params: Promise<{ id: string }> }) {
+  // Desenvolver el parámetro id de la URL
+  const resolvedParams = use(params);
+  const obraId = resolvedParams?.id;
 
   const [logs, setLogs] = useState<DailyLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -28,7 +26,6 @@ export default function ObraClientePage() {
 
       setLoading(true);
 
-      // Filtrar la base de datos únicamente por la obra específica de este cliente
       const { data, error } = await supabase
         .from('daily_logs')
         .select('*')
@@ -36,7 +33,7 @@ export default function ObraClientePage() {
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('Error al cargar los partes de la obra:', error.message);
+        console.error('Error al cargar los partes:', error.message);
       } else {
         setLogs(data || []);
       }
@@ -49,7 +46,6 @@ export default function ObraClientePage() {
 
   return (
     <div className="min-h-screen bg-slate-900 text-white p-6 max-w-2xl mx-auto">
-      {/* Encabezado sin menús ni selectores de otras obras */}
       <header className="border-b border-slate-800 pb-4 mb-6">
         <h1 className="text-2xl font-bold text-blue-400">Seguimiento de Su Obra</h1>
         <p className="text-sm text-slate-400 mt-1">
@@ -57,16 +53,13 @@ export default function ObraClientePage() {
         </p>
       </header>
 
-      {/* Estado de carga */}
       {loading ? (
         <div className="text-center py-10 text-slate-400">Cargando los avances de su obra...</div>
       ) : logs.length === 0 ? (
-        /* Estado sin partes publicados */
         <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 text-center text-slate-300">
           Aún no se han publicado avances para esta obra.
         </div>
       ) : (
-        /* Lista de partes cargados únicamente para esta obra */
         <div className="space-y-6">
           {logs.map((log) => (
             <article key={log.id} className="bg-slate-800 border border-slate-700 rounded-lg p-5 space-y-4">
@@ -83,7 +76,6 @@ export default function ObraClientePage() {
 
               <p className="text-slate-300 text-sm whitespace-pre-line">{log.description}</p>
 
-              {/* Galería de imágenes de la obra */}
               {log.photos_urls && log.photos_urls.length > 0 && (
                 <div className="grid grid-cols-2 gap-2 pt-2">
                   {log.photos_urls.map((url, idx) => (
